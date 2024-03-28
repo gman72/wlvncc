@@ -249,11 +249,39 @@ struct vnc_client* vnc_client_create(void)
 
 	self->pts = NO_PTS;
 
+	// Handle authentication
+	client->GetCredential = handle_vnc_authentication;
+
 	return self;
 
 failure:
 	free(self);
 	return NULL;
+}
+
+rfbCredential* handle_vnc_authentication(struct _rfbClient *client, int credentialType) {
+	rfbCredential* creds = (rfbCredential*) malloc(sizeof(rfbCredential));
+
+	if (client->authScheme == rfbVeNCrypt && credentialType == rfbCredentialTypeX509) {
+		char* path = getenv("TLS_CA");
+		rfbClientLog("Using TLS CA certificate from env 'TLS_CA': %s", path);
+
+		creds->x509Credential.x509CACertFile = malloc(strlen(path) + 1);
+		strcpy(creds->x509Credential.x509CACertFile, path);
+		creds->x509Credential.x509CrlVerifyMode = rfbX509CrlVerifyAll;
+	} else if (client->authScheme == rfbVeNCrypt && credentialType == rfbCredentialTypeUser) {
+		const* username = getenv("VNC_USERNAME");
+		const* password =  getenv("VNC_PASSWORD");
+		rfbClientLog("Using username and password for VNC authentication 'VNC_USERNAME', 'VNC_PASSWORD'");
+
+    	creds->userCredential.password = malloc(strlen(password) + 1);
+		creds->userCredential.username = malloc(strlen(username) + 1);
+		strcpy(creds->userCredential.password, password);
+		strcpy(creds->userCredential.username, username);
+	} else {
+
+	}
+	return creds;
 }
 
 void vnc_client_destroy(struct vnc_client* self)

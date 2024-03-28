@@ -25,7 +25,7 @@
 #include <gnutls/x509.h>
 #include <errno.h>
 
-static const char *rfbTLSPriority = "NORMAL:+DHE-DSS:+RSA:+DHE-RSA:+SRP";
+static const char *rfbTLSPriority = "NORMAL:+DHE-DSS:+RSA:+DHE-RSA";
 static const char *rfbAnonTLSPriority= "NORMAL:+ANON-DH";
 
 #define DH_BITS 1024
@@ -112,12 +112,13 @@ verify_certificate_callback (gnutls_session_t session)
       return GNUTLS_E_CERTIFICATE_ERROR;
     }
 
-  if (!gnutls_x509_crt_check_hostname (cert, hostname))
-    {
-      rfbClientLog("The certificate's owner does not match hostname '%s'\n",
-              hostname);
-      return GNUTLS_E_CERTIFICATE_ERROR;
-    }
+  // Certificate doesn't have a hostname
+  //if (!gnutls_x509_crt_check_hostname (cert, hostname))
+  //  {
+  //    rfbClientLog("The certificate's owner does not match hostname '%s'\n",
+  //            hostname);
+  //    return GNUTLS_E_CERTIFICATE_ERROR;
+  //  }
 
   gnutls_x509_crt_deinit (cert);
 
@@ -337,6 +338,9 @@ FreeX509Credential(rfbCredential *cred)
 static gnutls_certificate_credentials_t
 CreateX509CertCredential(rfbCredential *cred)
 {
+  // Use this to enable debug logs
+  //gnutls_global_set_log_level(GNUTLS_DEBUG_LEVEL);
+
   gnutls_certificate_credentials_t x509_cred;
   int ret;
 
