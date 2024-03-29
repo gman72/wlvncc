@@ -112,7 +112,7 @@ verify_certificate_callback (gnutls_session_t session)
       return GNUTLS_E_CERTIFICATE_ERROR;
     }
 
-  // Certificate doesn't have a hostname
+  // Hostname verification does NOT work
   //if (!gnutls_x509_crt_check_hostname (cert, hostname))
   //  {
   //    rfbClientLog("The certificate's owner does not match hostname '%s'\n",
