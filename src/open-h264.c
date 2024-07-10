@@ -153,6 +153,9 @@ static void reset_all_contexts(struct open_h264* self)
 
 struct open_h264* open_h264_create(rfbClient* client)
 {
+	// Use this to enable debug logs
+	// av_log_set_level(AV_LOG_DEBUG);
+
 	struct open_h264* self = calloc(1, sizeof(*self));
 	if (!self)
 		return NULL;

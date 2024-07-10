@@ -47,6 +47,7 @@
 #include "linux-dmabuf-unstable-v1.h"
 #include "time-util.h"
 #include "output.h"
+#include "data-control.h"
 
 #define CANARY_TICK_PERIOD INT64_C(100000) // us
 #define CANARY_LETHALITY_LEVEL INT64_C(8000) // us
@@ -87,6 +88,9 @@ struct pointer_collection* pointers;
 struct keyboard_collection* keyboards;
 static int drm_fd = -1;
 static uint64_t last_canary_tick;
+static struct data_control* data_control;
+static struct zwlr_data_control_manager_v1 *manager;
+static struct vnc_client* vnc;
 
 static bool have_egl = false;
 
@@ -114,6 +118,9 @@ static void on_seat_capability_change(struct seat* seat)
 		struct wl_keyboard* wl_keyboard =
 			wl_seat_get_keyboard(seat->wl_seat);
 		keyboard_collection_add_wl_keyboard(keyboards, wl_keyboard);
+
+		data_control = malloc(sizeof(data_control));
+		data_control_init(data_control, seat, manager);
 	} else {
 		// TODO Remove
 	}
@@ -155,6 +162,8 @@ static void registry_add(void* data, struct wl_registry* registry, uint32_t id,
 		}
 
 		wl_list_insert(&outputs, &output->link);
+	} else if (strcmp(interface, zwlr_data_control_manager_v1_interface.name) == 0) {
+		manager = wl_registry_bind(registry, id, &zwlr_data_control_manager_v1_interface, 2);
 	}
 }
 
@@ -815,6 +824,10 @@ static void create_canary_ticker(void)
 	aml_unref(ticker);
 }
 
+static void vnc_send_clipboard(char* text, size_t size) {
+	vnc_client_send_cut_text(vnc, text, size);
+}
+
 void run_main_loop_once(void)
 {
 	struct aml* aml = aml_get_default();
@@ -964,12 +977,13 @@ int main(int argc, char* argv[])
 	wl_display_roundtrip(wl_display);
 	wl_display_roundtrip(wl_display);
 
-	struct vnc_client* vnc = vnc_client_create();
+	vnc = vnc_client_create(data_control);
 	if (!vnc)
 		goto vnc_failure;
 
 	vnc->alloc_fb = on_vnc_client_alloc_fb;
 	vnc->update_fb = on_vnc_client_update_fb;
+	data_control->vnc_write_clipboard = vnc_send_clipboard;
 
 	if (vnc_client_set_pixel_format(vnc, shm_format) < 0) {
 		fprintf(stderr, "Unsupported pixel format\n");
@@ -1049,5 +1063,9 @@ display_failure:
 signal_handler_failure:
 	aml_unref(aml);
 	printf("Exiting...\n");
+
+	// @TODO this will throw an segfault (can't determine proxy version, but why?)
+	if (data_control)
+		data_control_destroy(data_control);
 	return rc;
 }
