@@ -1,5 +1,5 @@
 # Wayland VNC Client
-
+  This fork has the inhibit key as well as the copy paste functionality
 ## Introduction
 This is a work-in-progress implementation of a Wayland native VNC client.
 Expect bugs and missing features.
