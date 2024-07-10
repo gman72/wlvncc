@@ -32,6 +32,7 @@
 #include <xf86drm.h>
 #include <fcntl.h>
 
+#include "inhibitor.h"
 #include "pixman.h"
 #include "xdg-shell.h"
 #include "shm.h"
@@ -91,6 +92,8 @@ static uint64_t last_canary_tick;
 static struct data_control* data_control;
 static struct zwlr_data_control_manager_v1 *manager;
 static struct vnc_client* vnc;
+static struct zwp_keyboard_shortcuts_inhibit_manager_v1* keyboard_shortcuts_inhibitor;
+struct shortcuts_inhibitor* inhibitor;
 
 static bool have_egl = false;
 
@@ -139,6 +142,10 @@ static void registry_add(void* data, struct wl_registry* registry, uint32_t id,
 	} else if (strcmp(interface, "zwp_linux_dmabuf_v1") == 0) {
 		zwp_linux_dmabuf_v1 = wl_registry_bind(registry, id,
 				&zwp_linux_dmabuf_v1_interface, 2);
+	} else if (strcmp(interface, zwp_keyboard_shortcuts_inhibit_manager_v1_interface.name) == 0) {
+		keyboard_shortcuts_inhibitor = wl_registry_bind(registry, id,
+				&zwp_keyboard_shortcuts_inhibit_manager_v1_interface, 1);
+		inhibitor = inhibitor_new(keyboard_shortcuts_inhibitor);
 	} else if (strcmp(interface, "wl_seat") == 0) {
 		struct wl_seat* wl_seat;
 		wl_seat = wl_registry_bind(registry, id, &wl_seat_interface, 5);
@@ -394,6 +401,7 @@ static void xdg_surface_configure(void* data, struct xdg_surface* surface,
 	struct window* w = data;
 	xdg_surface_ack_configure(surface, serial);
 	window_configure(w);
+	inhibitor_init(inhibitor, w->wl_surface, seat_first(&seats)->wl_seat);
 }
 
 static const struct xdg_surface_listener xdg_surface_listener = {
@@ -552,6 +560,17 @@ void on_keyboard_event(struct keyboard_collection* collection,
 
 	// TODO handle multiple symbols
 	xkb_keysym_t symbol = xkb_state_key_get_one_sym(keyboard->state, key);
+
+	if (symbol == XKB_KEY_F12) {
+		if (!is_pressed) {
+			inhibitor_toggle(inhibitor);
+		}
+		return;
+	}
+
+	if (inhibitor->manager != NULL && !inhibitor_is_inhibited(inhibitor)) {
+		return;
+	}
 
 	char name[256];
 	xkb_keysym_get_name(symbol, name, sizeof(name));
